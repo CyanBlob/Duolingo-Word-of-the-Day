@@ -1,7 +1,7 @@
-use std::env;
+use std::{collections::HashMap, env};
 
 use reqwest::header::*;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VocabResponse {
@@ -9,12 +9,11 @@ pub struct VocabResponse {
     learning_language: Option<String>,
     from_language: Option<String>,
     language_information: Option<LanguageInformation>,
-    vocab_overview: Option<Vec<VocabWord>>
+    vocab_overview: Option<Vec<VocabWord>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct LanguageInformation {
-}
+pub struct LanguageInformation {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VocabWord {
@@ -32,7 +31,7 @@ pub struct VocabWord {
     id: Option<String>,
     lexeme_id: Option<String>,
     word_string: Option<String>,
-    translation: Option<String>
+    translation: Option<Vec<String>>,
 }
 
 static URL: &str = "https://www.duolingo.com";
@@ -45,15 +44,18 @@ async fn main() -> Result<(), &'static str> {
         println!("Usage: ./duolingo <username> <password>");
         Err("Womp")
     } else {
-        let token = login(&args[1], &args[2]).await;
-        get_vocab(&token.unwrap()).await;
+        let token = login(&args[1], &args[2]).await.unwrap();
+        let mut vocab = get_vocab(&token).await.unwrap();
+
+        let vocab = add_translations(&token, &mut vocab).await;
+        
+        println!("VOCAB:\n\n\n{:?}", vocab);
 
         Ok(())
     }
 }
 
 pub async fn login(username: &str, password: &str) -> Option<String> {
-
     let client = reqwest::Client::new();
     let builder: reqwest::RequestBuilder;
 
@@ -76,7 +78,6 @@ pub async fn login(username: &str, password: &str) -> Option<String> {
     }*/
 }
 
-
 pub async fn get_vocab(token: &str) -> Result<Vec<VocabWord>, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     let builder: reqwest::RequestBuilder;
@@ -91,17 +92,68 @@ pub async fn get_vocab(token: &str) -> Result<Vec<VocabWord>, Box<dyn std::error
         .await?;
 
     let response: Result<VocabResponse, serde_json::Error> = serde_json::from_str(&resp_text);
-    
-    for word in response.unwrap().vocab_overview.unwrap() {
-        println!("{}", &word.word_string.unwrap())
-    }
-    
-    let vocab: Vec<VocabWord> = Vec::<VocabWord>::new();
 
-    Ok(vocab)
+    //for word in response.unwrap().vocab_overview.unwrap() {
+    //println!("{}", &word.word_string.unwrap())
+    //}
+
+    Ok(response.unwrap().vocab_overview.unwrap())
 }
 
-pub async fn add_translations(token: &str) {
+pub async fn add_translations<'a>(token: &str, vocab_words: &'a mut Vec<VocabWord>) -> &'a mut Vec<VocabWord> {
+    let client = reqwest::Client::new();
+    let builder: reqwest::RequestBuilder;
+
+    let mut word_list: String = String::from("[");
+
+    /*for vocab_word in immut_vocab {
+        word_list = format!(
+            "{} \"{}\",",
+            &word_list,
+            //&vocab_word.word_string.as_ref().unwrap()
+            &(vocab_word.word_string.as_ref().unwrap())
+        )
+        .to_owned();
+    }*/
+    for i in 0..vocab_words.len() {
+        word_list = format!(
+            "{} \"{}\",",
+            &word_list,
+            //&vocab_word.word_string.as_ref().unwrap()
+            vocab_words[i].word_string.as_ref().unwrap()
+        )
+        .to_owned();
+    }
+
+    word_list = word_list[0..word_list.len() - 1].to_string();
+
+    word_list = format!("{}]", &word_list);
+
+    let query = format!(
+        "{}/{}/{}?tokens={}",
+        "https://d2.duolingo.com/api/1/dictionary/hints", "es", "en", word_list
+    );
+
+    builder = client.get(query);
+
+    let resp_text = builder
+        .headers(get_headers(&token))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+
+    let response: HashMap<String, Option<Vec<String>>> = serde_json::from_str(&resp_text).unwrap();
+
+    for i in 0..vocab_words.len() {
+        let key = vocab_words[i].word_string.as_ref().unwrap();
+
+        vocab_words[i].translation = response.get(key).unwrap().to_owned();
+    }
+    
+    vocab_words
 }
 
 fn get_headers(token: &str) -> HeaderMap {
