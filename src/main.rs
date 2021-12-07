@@ -1,10 +1,41 @@
 use std::env;
 
 use reqwest::header::*;
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VocabResponse {
+    language_string: String,
+    learning_language: Option<String>,
+    from_language: Option<String>,
+    language_information: Option<LanguageInformation>,
+    vocab_overview: Option<Vec<VocabWord>>
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LanguageInformation {
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VocabWord {
+    strength_bars: Option<i32>,
+    infinitive: Option<String>,
+    normalized_string: Option<String>,
+    pos: Option<String>,
+    last_pacticed_ms: Option<i64>,
+    skill: Option<String>,
+    related_lexemes: Option<Vec<String>>,
+    last_practiced: Option<String>,
+    strength: Option<f32>,
+    skill_url_title: Option<String>,
+    gender: Option<String>,
+    id: Option<String>,
+    lexeme_id: Option<String>,
+    word_string: Option<String>,
+    translation: Option<String>
+}
 
 static URL: &str = "https://www.duolingo.com";
-static USER: &str = "andrewjamest1993@gmail.com";
-static PASS: &str = "Zelada7417";
 
 #[tokio::main]
 async fn main() -> Result<(), &'static str> {
@@ -15,19 +46,20 @@ async fn main() -> Result<(), &'static str> {
         Err("Womp")
     } else {
         let token = login(&args[1], &args[2]).await;
-        simple_query(&token.unwrap()).await;
+        get_vocab(&token.unwrap()).await;
 
         Ok(())
     }
 }
 
 pub async fn login(username: &str, password: &str) -> Option<String> {
+
     let client = reqwest::Client::new();
-    let mut builder: reqwest::RequestBuilder;
+    let builder: reqwest::RequestBuilder;
 
     builder = client.get(format!(
         "{}/{}?login={}&password={}",
-        URL, "login", USER, PASS
+        URL, "login", username, password
     ));
 
     let resp_text = builder.send().await.unwrap().headers().clone();
@@ -35,8 +67,6 @@ pub async fn login(username: &str, password: &str) -> Option<String> {
     //let response: Result<ApiResponse, serde_json::Error> = serde_json::from_str(&resp_text);
 
     let token = resp_text.get("jwt").unwrap().to_str().unwrap();
-
-    println!("Got token!!\n{:?}", &token);
 
     Some(token.into())
 
@@ -46,9 +76,10 @@ pub async fn login(username: &str, password: &str) -> Option<String> {
     }*/
 }
 
-pub async fn simple_query(token: &str) -> Result<String, Box<dyn std::error::Error>> {
+
+pub async fn get_vocab(token: &str) -> Result<Vec<VocabWord>, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
-    let mut builder: reqwest::RequestBuilder;
+    let builder: reqwest::RequestBuilder;
 
     builder = client.get(format!("{}/{}", URL, "vocabulary/overview?_=1638505469098"));
 
@@ -59,15 +90,18 @@ pub async fn simple_query(token: &str) -> Result<String, Box<dyn std::error::Err
         .text()
         .await?;
 
-    //let response: Result<ApiResponse, serde_json::Error> = serde_json::from_str(&resp_text);
+    let response: Result<VocabResponse, serde_json::Error> = serde_json::from_str(&resp_text);
+    
+    for word in response.unwrap().vocab_overview.unwrap() {
+        println!("{}", &word.word_string.unwrap())
+    }
+    
+    let vocab: Vec<VocabWord> = Vec::<VocabWord>::new();
 
-    println!("Got string!\n{:?}", &resp_text);
+    Ok(vocab)
+}
 
-    /*match response {
-        Ok(r) => Ok(r.result),
-        Err(e) => Err(e.into()),
-    }*/
-    Ok(resp_text.clone())
+pub async fn add_translations(token: &str) {
 }
 
 fn get_headers(token: &str) -> HeaderMap {
