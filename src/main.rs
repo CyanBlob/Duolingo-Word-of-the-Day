@@ -44,12 +44,21 @@ async fn main() -> Result<(), &'static str> {
         println!("Usage: ./duolingo <username> <password>");
         Err("Womp")
     } else {
-        let token = login(&args[1], &args[2]).await.unwrap();
-        let mut vocab = get_vocab(&token).await.unwrap();
+        let token;
+        match login(&args[1], &args[2]).await {
+            Some(t) => token = t,
+            None => panic!("Could not log in"),
+        }
+
+        let mut vocab;
+        match get_vocab(&token).await {
+            Ok(v) => vocab = v,
+            Err(e) => panic!("Could not fetch vocab: {}", e),
+        }
 
         let vocab = add_translations(&token, &mut vocab).await;
-        
-        println!("VOCAB:\n\n\n{:?}", vocab);
+
+        println!("VOCAB:\n{:?}", vocab);
 
         Ok(())
     }
@@ -64,18 +73,22 @@ pub async fn login(username: &str, password: &str) -> Option<String> {
         URL, "login", username, password
     ));
 
-    let resp_text = builder.send().await.unwrap().headers().clone();
+    let resp_text;
+    match builder.send().await {
+        Ok(x) => resp_text = x.headers().clone(),
+        Err(_) => return None,
+    }
 
-    //let response: Result<ApiResponse, serde_json::Error> = serde_json::from_str(&resp_text);
-
-    let token = resp_text.get("jwt").unwrap().to_str().unwrap();
+    let token;
+    match resp_text.get("jwt") {
+        Some(t) => match t.to_str() {
+            Ok(s) => token = s,
+            Err(_) => return None,
+        },
+        None => return None,
+    }
 
     Some(token.into())
-
-    /*match response {
-        Ok(r) => Ok(r.result),
-        Err(e) => Err(e.into()),
-    }*/
 }
 
 pub async fn get_vocab(token: &str) -> Result<Vec<VocabWord>, Box<dyn std::error::Error>> {
@@ -93,33 +106,28 @@ pub async fn get_vocab(token: &str) -> Result<Vec<VocabWord>, Box<dyn std::error
 
     let response: Result<VocabResponse, serde_json::Error> = serde_json::from_str(&resp_text);
 
-    //for word in response.unwrap().vocab_overview.unwrap() {
-    //println!("{}", &word.word_string.unwrap())
-    //}
-
-    Ok(response.unwrap().vocab_overview.unwrap())
+    return match response {
+        Ok(r) => match r.vocab_overview {
+            Some(v) => Ok(v),
+            None => Err("Could not decode vocab response".into()),
+        },
+        Err(_) => Err("Could not decode vocab response".into()),
+    };
 }
 
-pub async fn add_translations<'a>(token: &str, vocab_words: &'a mut Vec<VocabWord>) -> &'a mut Vec<VocabWord> {
+pub async fn add_translations<'a>(
+    token: &str,
+    vocab_words: &'a mut Vec<VocabWord>,
+) -> &'a mut Vec<VocabWord> {
     let client = reqwest::Client::new();
     let builder: reqwest::RequestBuilder;
 
     let mut word_list: String = String::from("[");
 
-    /*for vocab_word in immut_vocab {
-        word_list = format!(
-            "{} \"{}\",",
-            &word_list,
-            //&vocab_word.word_string.as_ref().unwrap()
-            &(vocab_word.word_string.as_ref().unwrap())
-        )
-        .to_owned();
-    }*/
     for i in 0..vocab_words.len() {
         word_list = format!(
             "{} \"{}\",",
             &word_list,
-            //&vocab_word.word_string.as_ref().unwrap()
             vocab_words[i].word_string.as_ref().unwrap()
         )
         .to_owned();
@@ -152,7 +160,7 @@ pub async fn add_translations<'a>(token: &str, vocab_words: &'a mut Vec<VocabWor
 
         vocab_words[i].translation = response.get(key).unwrap().to_owned();
     }
-    
+
     vocab_words
 }
 
