@@ -11,3 +11,9 @@ tokio = { version = "1", features = ["full"] }
 tokio-test = "0.4.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.64"
+rand = "0.8.4"
+rppal = { version = "0.13.1", features = ["hal-unproven"] }
+epd-waveshare = "0.5.0"
+embedded-graphics = "0.7"
+display-interface = "0.4"
+display-interface-spi = "0.4"

@@ -30,10 +30,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
+name = "az"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f771a5d1f5503f7f4279a30f3643d3421ba149848b89ecaaec0ea2acf04a5ac4"
+
+[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
+
+[[package]]
+name = "bit_field"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcb6dd1c2376d2e096796e234a70e17e94cc2d5d54ff8ce42b28cef1d0d359a4"
 
 [[package]]
 name = "bitflags"
@@ -46,6 +58,18 @@ name = "bumpalo"
 version = "3.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f1e260c3a9040a7c19a12468758f4c16f31a81a1fe087482be9570ec864bb6c"
+
+[[package]]
+name = "byte-slice-cast"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0a5e3906bcbf133e33c1d4d95afc664ad37fbdb9f6568d8043e7ea8c27d93d3"
+
+[[package]]
+name = "byteorder"
+version = "1.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
 name = "bytes"
@@ -82,14 +106,79 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
 
 [[package]]
+name = "display-interface"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7517c040926d7b02b111884aa089177db80878533127f7c1b480d852c5fb4112"
+
+[[package]]
+name = "display-interface-spi"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "489378ad054862146fbd1f09f51d585ccbe4bd1e2feadcda2a13ac33f840e1a5"
+dependencies = [
+ "byte-slice-cast",
+ "display-interface",
+ "embedded-hal 0.2.6",
+]
+
+[[package]]
 name = "duolingo-word-of-the-day"
 version = "0.1.0"
 dependencies = [
+ "display-interface",
+ "display-interface-spi",
+ "embedded-graphics",
+ "epd-waveshare",
+ "rand",
  "reqwest",
+ "rppal",
  "serde",
  "serde_json",
  "tokio",
  "tokio-test",
+]
+
+[[package]]
+name = "embedded-graphics"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "750082c65094fbcc4baf9ba31583ce9a8bb7f52cadfb96f6164b1bc7f922f32b"
+dependencies = [
+ "az",
+ "byteorder",
+ "embedded-graphics-core",
+ "float-cmp",
+ "micromath",
+]
+
+[[package]]
+name = "embedded-graphics-core"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8b1239db5f3eeb7e33e35bd10bd014e7b2537b17e071f726a09351431337cfa"
+dependencies = [
+ "az",
+ "byteorder",
+]
+
+[[package]]
+name = "embedded-hal"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e36cfb62ff156596c892272f3015ef952fe1525e85261fa3a7f327bd6b384ab9"
+dependencies = [
+ "nb 0.1.3",
+ "void",
+]
+
+[[package]]
+name = "embedded-hal"
+version = "1.0.0-alpha.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a554c04648665230499563ccdfd1fcd719ef2d5a0af54bdc81c5d877fb556db4"
+dependencies = [
+ "nb 1.0.0",
 ]
 
 [[package]]
@@ -99,6 +188,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a74ea89a0a1b98f6332de42c95baff457ada66d1cb4030f9ff151b2041a1c746"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "epd-waveshare"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5502a0ed11effff2f47b69b83cf8d4325de86362b5ca37925fa1bf240522bbc"
+dependencies = [
+ "bit_field",
+ "embedded-graphics-core",
+ "embedded-hal 0.2.6",
+]
+
+[[package]]
+name = "float-cmp"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1267f4ac4f343772758f7b1bdcbe767c218bbab93bb432acbf5162bbf85a6c4"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -390,6 +499,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "308cc39be01b73d0d18f82a0e7b2a3df85245f84af96fdddc5d202d27e47b86a"
 
 [[package]]
+name = "micromath"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc4010833aea396656c2f91ee704d51a6f1329ec2ab56ffd00bfd56f7481ea94"
+
+[[package]]
 name = "mime"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -446,12 +561,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "nb"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "801d31da0513b6ec5214e9bf433a77966320625a37860f910be265be6e18d06f"
+dependencies = [
+ "nb 1.0.0",
+]
+
+[[package]]
+name = "nb"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "546c37ac5d9e56f55e73b677106873d9d9f5190605e41a856503623648488cae"
+
+[[package]]
 name = "ntapi"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f6bb902e437b6d86e03cce10a7e2af662292c5dfef23b65899ea3ac9354ad44"
 dependencies = [
  "winapi",
+]
+
+[[package]]
+name = "num-traits"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
+dependencies = [
+ "autocfg",
 ]
 
 [[package]]
@@ -671,6 +810,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "rppal"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c88c9c6248de4d337747b619d8f671055ef48a87dc21b97998833f189a0bbd4f"
+dependencies = [
+ "embedded-hal 0.2.6",
+ "embedded-hal 1.0.0-alpha.5",
+ "lazy_static",
+ "libc",
+ "nb 0.1.3",
+ "spin_sleep",
+ "void",
+]
+
+[[package]]
 name = "ryu"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -786,6 +940,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5dc90fe6c7be1a323296982db1836d1ea9e47b6839496dde9a541bc496df3516"
 dependencies = [
  "libc",
+ "winapi",
+]
+
+[[package]]
+name = "spin_sleep"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a98101bdc3833e192713c2af0b0dd2614f50d1cf1f7a97c5221b7aac052acc7"
+dependencies = [
+ "once_cell",
  "winapi",
 ]
 
@@ -993,6 +1157,12 @@ name = "version_check"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5fecdca9a5291cc2b8dcf7dc02453fee791a280f3743cb0905f8822ae463b3fe"
+
+[[package]]
+name = "void"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 
 [[package]]
 name = "want"

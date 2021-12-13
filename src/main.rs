@@ -1,40 +1,34 @@
-use std::{collections::HashMap, env};
+use std::{env, error::Error};
 
-use reqwest::header::*;
-use serde::{Deserialize, Serialize};
+pub mod api;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VocabResponse {
-    language_string: String,
-    learning_language: Option<String>,
-    from_language: Option<String>,
-    language_information: Option<LanguageInformation>,
-    vocab_overview: Option<Vec<VocabWord>>,
+use embedded_graphics::{mono_font::MonoTextStyleBuilder, text::{TextStyleBuilder, Baseline, Text}, prelude::Point, Drawable};
+use epd_waveshare::{
+    color::*,
+    epd2in9_v2::{Display2in9, Epd2in9},
+    graphics::DisplayRotation,
+    prelude::*,
+};
+use rppal::{
+    gpio::Gpio,
+    hal::Delay,
+    spi::{Bus, Mode, SlaveSelect, Spi},
+};
+
+#[derive(Debug)]
+enum ErrorCode {
+    ApiError,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LanguageInformation {}
+impl std::error::Error for ErrorCode {}
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VocabWord {
-    strength_bars: Option<i32>,
-    infinitive: Option<String>,
-    normalized_string: Option<String>,
-    pos: Option<String>,
-    last_pacticed_ms: Option<i64>,
-    skill: Option<String>,
-    related_lexemes: Option<Vec<String>>,
-    last_practiced: Option<String>,
-    strength: Option<f32>,
-    skill_url_title: Option<String>,
-    gender: Option<String>,
-    id: Option<String>,
-    lexeme_id: Option<String>,
-    word_string: Option<String>,
-    translation: Option<Vec<String>>,
+impl std::fmt::Display for ErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErrorCode::ApiError => write!(f, "Api Error"),
+        }
+    }
 }
-
-static URL: &str = "https://www.duolingo.com";
 
 #[tokio::main]
 async fn main() -> Result<(), &'static str> {
@@ -45,132 +39,93 @@ async fn main() -> Result<(), &'static str> {
         Err("Womp")
     } else {
         let token;
-        match login(&args[1], &args[2]).await {
+        match api::login(&args[1], &args[2]).await {
             Some(t) => token = t,
             None => panic!("Could not log in"),
         }
 
-        let mut vocab;
-        match get_vocab(&token).await {
-            Ok(v) => vocab = v,
-            Err(e) => panic!("Could not fetch vocab: {}", e),
+        let selected_words = pick_words(&token, 1).await;
+
+        match selected_words {
+            Ok(v) => display_words(v).await,
+            Err(_) => println!("Can't display!"),
         }
-
-        let vocab = add_translations(&token, &mut vocab).await;
-
-        println!("VOCAB:\n{:?}", vocab);
 
         Ok(())
     }
 }
 
-pub async fn login(username: &str, password: &str) -> Option<String> {
-    let client = reqwest::Client::new();
-    let builder: reqwest::RequestBuilder;
-
-    builder = client.get(format!(
-        "{}/{}?login={}&password={}",
-        URL, "login", username, password
-    ));
-
-    let resp_text;
-    match builder.send().await {
-        Ok(x) => resp_text = x.headers().clone(),
-        Err(_) => return None,
+async fn pick_words(token: &str, count: i32) -> Result<Vec<api::VocabWord>, Box<dyn Error>> {
+    let mut vocab;
+    match api::get_vocab(&token).await {
+        Ok(v) => vocab = v,
+        Err(_) => return Err(Box::new(ErrorCode::ApiError)),
     }
 
-    let token;
-    match resp_text.get("jwt") {
-        Some(t) => match t.to_str() {
-            Ok(s) => token = s,
-            Err(_) => return None,
-        },
-        None => return None,
+    let mut selected_words = Vec::<api::VocabWord>::new();
+
+    let vocab = api::add_translations(&token, &mut vocab).await;
+
+    vocab.sort_by(|a, b| a.strength.partial_cmp(&b.strength).unwrap());
+
+    for i in 0..count {
+        selected_words.push(vocab[i as usize].clone());
     }
 
-    Some(token.into())
+    Ok(selected_words)
 }
 
-pub async fn get_vocab(token: &str) -> Result<Vec<VocabWord>, Box<dyn std::error::Error>> {
-    let client = reqwest::Client::new();
-    let builder: reqwest::RequestBuilder;
+async fn display_words(words: Vec<api::VocabWord>) {
+    let mut spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 16_000_000, Mode::Mode0).unwrap();
+    let pins = Gpio::new().unwrap();
 
-    builder = client.get(format!("{}/{}", URL, "vocabulary/overview?_=1638505469098"));
+    let cs = pins.get(17).unwrap().into_output();
+    let busy = pins.get(17).unwrap().into_input();
+    let dc = pins.get(17).unwrap().into_output();
+    let rst = pins.get(17).unwrap().into_output();
 
-    let resp_text = builder
-        .headers(get_headers(&token))
-        .send()
-        .await?
-        .text()
-        .await?;
+    let mut delay = Delay::new();
 
-    let response: Result<VocabResponse, serde_json::Error> = serde_json::from_str(&resp_text);
+    // Setup the epd
+    let mut epd = Epd2in9::new(&mut spi, cs, busy, dc, rst, &mut delay);
 
-    return match response {
-        Ok(r) => match r.vocab_overview {
-            Some(v) => Ok(v),
-            None => Err("Could not decode vocab response".into()),
-        },
-        Err(_) => Err("Could not decode vocab response".into()),
-    };
-}
+    // Setup the graphics
+    let mut display = Display2in9::default();
 
-pub async fn add_translations<'a>(
-    token: &str,
-    vocab_words: &'a mut Vec<VocabWord>,
-) -> &'a mut Vec<VocabWord> {
-    let client = reqwest::Client::new();
-    let builder: reqwest::RequestBuilder;
-
-    let mut word_list: String = String::from("[");
-
-    for i in 0..vocab_words.len() {
-        word_list = format!(
-            "{} \"{}\",",
-            &word_list,
-            vocab_words[i].word_string.as_ref().unwrap()
-        )
-        .to_owned();
-    }
-
-    word_list = word_list[0..word_list.len() - 1].to_string();
-
-    word_list = format!("{}]", &word_list);
-
-    let query = format!(
-        "{}/{}/{}?tokens={}",
-        "https://d2.duolingo.com/api/1/dictionary/hints", "es", "en", word_list
+    // Draw some text
+    /*display.draw(
+    let _ = Text::new("Hello Rust!", Point::new(x, y))
+    .draw(display);
     );
 
-    builder = client.get(query);
+    // Transfer the frame data to the epd and display it
+    epd.update_and_display_frame( & mut spi, & display.buffer()) ?;*/
 
-    let resp_text = builder
-        .headers(get_headers(&token))
-        .send()
-        .await
-        .unwrap()
-        .text()
-        .await
-        .unwrap();
-
-    let response: HashMap<String, Option<Vec<String>>> = serde_json::from_str(&resp_text).unwrap();
-
-    for i in 0..vocab_words.len() {
-        let key = vocab_words[i].word_string.as_ref().unwrap();
-
-        vocab_words[i].translation = response.get(key).unwrap().to_owned();
-    }
-
-    vocab_words
+    println!("Selected words: {:?}", words);
 }
 
-fn get_headers(token: &str) -> HeaderMap {
-    let mut headers = HeaderMap::new();
+/*struct U8Delay {
+    delay: delay::Ets
+}
 
-    headers.append(
-        AUTHORIZATION,
-        HeaderValue::from_str(&(String::from("Bearer ") + token)).unwrap(),
-    );
+impl embedded_hal::blocking::delay::DelayMs<u8> for U8Delay {
+    fn delay_ms(&mut self, ms: u8) {
+        unsafe {
+            //delay((ms as u32 * 1000));
+            let mut delay = delay::Ets;
+            delay.delay_ms(ms as u32 * 1);
+        }
+    }
+}*/
 
-    headers
+fn draw_text(display: &mut Display2in9, text: &str, x: i32, y: i32) {
+    let style = MonoTextStyleBuilder::new()
+        .font(&embedded_graphics::mono_font::ascii::FONT_6X10)
+        .text_color(Black)
+        .background_color(White)
+        .build();
+
+    let text_style = TextStyleBuilder::new().baseline(Baseline::Top).build();
+
+    let _ = Text::with_text_style(text, Point::new(x, y), style, text_style).draw(display);
 }
