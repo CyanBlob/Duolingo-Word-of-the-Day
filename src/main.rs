@@ -49,6 +49,8 @@ async fn main() -> Result<(), &'static str> {
             None => panic!("Could not log in"),
         }
 
+        println!("Token: {}", token);
+
         let selected_words = pick_words(&token, 1).await;
 
         match selected_words {
@@ -71,7 +73,10 @@ async fn pick_words(token: &str, count: i32) -> Result<Vec<api::VocabWord>, Box<
 
     let vocab = api::add_translations(&token, &mut vocab).await;
 
-    vocab.sort_by(|a, b| a.strength.partial_cmp(&b.strength).unwrap());
+    vocab.sort_by(|a, b| match a.strength.partial_cmp(&b.strength) {
+        Some(v) => return v,
+        None => return std::cmp::Ordering::Equal,
+    });
 
     for i in 0..count {
         selected_words.push(vocab[i as usize].clone());
@@ -81,6 +86,8 @@ async fn pick_words(token: &str, count: i32) -> Result<Vec<api::VocabWord>, Box<
 }
 
 async fn display_words(words: Vec<api::VocabWord>) {
+    println!("Words: {:?}", words);
+    return;
     let mut spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 16_000_000, Mode::Mode0).unwrap();
     let pins = Gpio::new().unwrap();
 
