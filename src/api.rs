@@ -146,4 +146,3 @@ fn get_headers(token: &str) -> HeaderMap {
 
     headers
 }
-

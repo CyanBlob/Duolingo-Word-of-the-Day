@@ -2,7 +2,12 @@ use std::{env, error::Error};
 
 pub mod api;
 
-use embedded_graphics::{mono_font::MonoTextStyleBuilder, text::{TextStyleBuilder, Baseline, Text}, prelude::Point, Drawable};
+use embedded_graphics::{
+    mono_font::MonoTextStyleBuilder,
+    prelude::Point,
+    text::{Baseline, Text, TextStyleBuilder},
+    Drawable,
+};
 use epd_waveshare::{
     color::*,
     epd2in9_v2::{Display2in9, Epd2in9},
@@ -79,10 +84,10 @@ async fn display_words(words: Vec<api::VocabWord>) {
     let mut spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 16_000_000, Mode::Mode0).unwrap();
     let pins = Gpio::new().unwrap();
 
-    let cs = pins.get(17).unwrap().into_output();
-    let busy = pins.get(17).unwrap().into_input();
-    let dc = pins.get(17).unwrap().into_output();
-    let rst = pins.get(17).unwrap().into_output();
+    let cs = pins.get(8).unwrap().into_output(); // pin 24
+    let busy = pins.get(25).unwrap().into_input(); // pin 22
+    let dc = pins.get(24).unwrap().into_output(); // pin 18
+    let rst = pins.get(23).unwrap().into_output(); // pin 16
 
     let mut delay = Delay::new();
 
