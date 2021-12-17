@@ -46,28 +46,25 @@ async fn main() -> Result<(), &'static str> {
         Err("Womp")
     } else {
         let mut interval_timer =
-            tokio::time::interval(chrono::Duration::seconds(5).to_std().unwrap());
+            tokio::time::interval(chrono::Duration::hours(1).to_std().unwrap());
+
+        let username = args[1].to_owned();
+        let password = args[2].to_owned();
+
+        // update immediately, then wait for next tick
+        new_word(&username, &password).await;
 
         loop {
-            let username = args[1].to_owned();
-            let password = args[2].to_owned();
-            // Wait for the next interval tick
-            println!("Waiting");
             interval_timer.tick().await;
-            println!("Wait complete");
-            let mut rt = tokio::runtime::Runtime::new().unwrap();
-            tokio::task::spawn_blocking(move || {
-            //tokio::spawn(async move {
-                rt.block_on(new_word(username, password));
-            }).await; // For async task
-                //tokio::task::spawn_blocking(|| do_my_task()); // For blocking task
+            
+            new_word(&username, &password).await;
         }
 
         Ok(())
     }
 }
 
-async fn new_word(username: String, password: String) {
+async fn new_word(username: &str, password: &str) {
     println!("New word! {:?}", std::time::SystemTime::now());
     let token;
     match api::login(&username, &password).await {
