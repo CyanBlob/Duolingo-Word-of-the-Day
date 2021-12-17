@@ -20,6 +20,8 @@ use rppal::{
     spi::{Bus, Mode, SlaveSelect, Spi},
 };
 
+use chrono::Duration;
+
 #[derive(Debug)]
 enum ErrorCode {
     ApiError,
@@ -43,22 +45,43 @@ async fn main() -> Result<(), &'static str> {
         println!("Usage: ./duolingo <username> <password>");
         Err("Womp")
     } else {
-        let token;
-        match api::login(&args[1], &args[2]).await {
-            Some(t) => token = t,
-            None => panic!("Could not log in"),
-        }
+        let mut interval_timer =
+            tokio::time::interval(chrono::Duration::seconds(5).to_std().unwrap());
 
-        println!("Token: {}", token);
-
-        let selected_words = pick_words(&token, 1).await;
-
-        match selected_words {
-            Ok(v) => display_words(v).await,
-            Err(_) => println!("Can't display!"),
+        loop {
+            let username = args[1].to_owned();
+            let password = args[2].to_owned();
+            // Wait for the next interval tick
+            println!("Waiting");
+            interval_timer.tick().await;
+            println!("Wait complete");
+            let mut rt = tokio::runtime::Runtime::new().unwrap();
+            tokio::task::spawn_blocking(move || {
+            //tokio::spawn(async move {
+                rt.block_on(new_word(username, password));
+            }).await; // For async task
+                //tokio::task::spawn_blocking(|| do_my_task()); // For blocking task
         }
 
         Ok(())
+    }
+}
+
+async fn new_word(username: String, password: String) {
+    println!("New word! {:?}", std::time::SystemTime::now());
+    let token;
+    match api::login(&username, &password).await {
+        Some(t) => token = t,
+        None => panic!("Could not log in"),
+    }
+
+    println!("Token: {}", token);
+
+    let selected_words = pick_words(&token, 10).await;
+
+    match selected_words {
+        Ok(v) => display_words(v).await,
+        Err(_) => println!("Can't display!"),
     }
 }
 
@@ -85,6 +108,7 @@ async fn pick_words(token: &str, count: i32) -> Result<Vec<api::VocabWord>, Box<
     Ok(selected_words)
 }
 
+#[allow(unreachable_code)]
 async fn display_words(words: Vec<api::VocabWord>) {
     println!("Words: {:?}", words);
     return;
@@ -112,8 +136,6 @@ async fn display_words(words: Vec<api::VocabWord>) {
 
     // Transfer the frame data to the epd and display it
     epd.update_and_display_frame( & mut spi, & display.buffer()) ?;*/
-
-    println!("Selected words: {:?}", words);
 }
 
 /*struct U8Delay {
