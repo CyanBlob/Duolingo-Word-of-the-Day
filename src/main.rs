@@ -24,7 +24,7 @@ use rppal::{
 
 #[derive(Debug)]
 enum ErrorCode {
-    ApiError,
+    ApiError(String),
 }
 
 impl std::error::Error for ErrorCode {}
@@ -32,7 +32,7 @@ impl std::error::Error for ErrorCode {}
 impl std::fmt::Display for ErrorCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ErrorCode::ApiError => write!(f, "Api Error"),
+            ErrorCode::ApiError(e) => write!(f, "Api Error: {:?}", e),
         }
     }
 }
@@ -53,12 +53,13 @@ async fn main() -> Result<(), &'static str> {
         loop {
             interval_timer.tick().await;
 
-            new_word(&username, &password).await;
+            if let Err(e) = new_word(&username, &password).await {
+                println!("Failed to update vocab words: {:?}", e);
+            }
         }
     }
 }
-
-async fn new_word(username: &str, password: &str) {
+async fn new_word(username: &str, password: &str) -> Result<(), Box<dyn Error>> {
     println!("New word! {:?}", std::time::SystemTime::now());
     let token;
     match api::login(&username, &password).await {
@@ -69,16 +70,18 @@ async fn new_word(username: &str, password: &str) {
     let selected_words = pick_words(&token, 4).await;
 
     match selected_words {
-        Ok(v) => display_words(v).await,
+        Ok(v) => display_words(v).await?,
         Err(_) => println!("Can't display!"),
     }
+    
+    Ok(())
 }
 
 async fn pick_words(token: &str, count: i32) -> Result<Vec<api::VocabWord>, Box<dyn Error>> {
     let mut vocab;
     match api::get_vocab(&token).await {
         Ok(v) => vocab = v,
-        Err(_) => return Err(Box::new(ErrorCode::ApiError)),
+        Err(_) => return Err(Box::new(ErrorCode::ApiError("Could not fetch vocab".to_owned()))),
     }
 
     let mut selected_words = Vec::<api::VocabWord>::new();
@@ -100,24 +103,24 @@ async fn pick_words(token: &str, count: i32) -> Result<Vec<api::VocabWord>, Box<
     Ok(selected_words)
 }
 
-async fn display_words(words: Vec<api::VocabWord>) {
+async fn display_words(words: Vec<api::VocabWord>) -> Result<(), Box<dyn Error>> {
     let mut spi;
     match Spi::new(Bus::Spi0, SlaveSelect::Ss0, 10_000_000, Mode::Mode0) {
         Ok(s) => spi = s,
-        Err(e) => panic!("Could not get access to SPI: {:?}", e),
+        Err(e) => return Err(Box::new(ErrorCode::ApiError(format!("Could not get access to SPI: {:?}", e).to_owned()))),
     }
 
-    let pins = Gpio::new().unwrap();
+    let pins = Gpio::new()?;
 
-    let cs =   pins.get(8).unwrap().into_output();  // pin 24
-    let busy = pins.get(25).unwrap().into_input();  // pin 22
-    let dc =   pins.get(24).unwrap().into_output(); // pin 18
-    let rst =  pins.get(23).unwrap().into_output(); // pin 16
+    let cs =   pins.get(8)?.into_output();  // pin 24
+    let busy = pins.get(25)?.into_input();  // pin 22
+    let dc =   pins.get(24)?.into_output(); // pin 18
+    let rst =  pins.get(23)?.into_output(); // pin 16
 
     let mut delay = Delay::new();
 
     // Setup the epd
-    let mut epd = Epd2in9::new(&mut spi, cs, busy, dc, rst, &mut delay).unwrap();
+    let mut epd = Epd2in9::new(&mut spi, cs, busy, dc, rst, &mut delay)?;
 
     // Setup the graphics
     let mut display = Display2in9::default();
@@ -142,8 +145,9 @@ async fn display_words(words: Vec<api::VocabWord>) {
     }
 
     if let Err(e) = epd.update_and_display_frame(&mut spi, &display.buffer(), &mut delay) {
-        println!("Failed to refresh display: {:?}", e);
+        return Err(Box::new(ErrorCode::ApiError(format!("Failed to refresh display: {:?}", e).to_owned())))
     }
+    Ok(())
 }
 
 fn draw_text(
